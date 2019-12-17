@@ -1,0 +1,1 @@
+bin\release\RtxShadow.exe -w 1920 -h 1080 -t 1000 -a 5 -p 0 -b 1 -l rtx_Sponza_1080_BVH1.csv

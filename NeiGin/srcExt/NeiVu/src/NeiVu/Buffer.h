@@ -21,9 +21,9 @@ namespace Nei::Vu {
 
     void setName(std::string const& name);
 
-    void setData(void* data, uint size, uint offset = 0);
-    void setDataAsync(TransferBuffer* tb, void* data, uint size, uint offset = 0);
-    void setDataInline(CommandBuffer* cmd, void* data, uint size, uint offset = 0);
+    void setData(const void* data, uint size, uint offset = 0);
+    void setDataAsync(TransferBuffer* tb, const void* data, uint size, uint offset = 0);
+    void setDataInline(CommandBuffer* cmd, const void* data, uint size, uint offset = 0);
 
     void transferOwnership(CommandBuffer* cmd, uint srcIndex, uint dstIndex);
 

@@ -100,7 +100,7 @@ void Buffer::setName(std::string const& name) {
   setObjectName(name, vk::ObjectType::eBuffer, uint64(VkBuffer(buffer)));
 }
 
-void Buffer::setData(void* data, uint size, uint offset) {
+void Buffer::setData(const void* data, uint size, uint offset) {
   nei_assert(size + offset <= this->size);
   if (mappable) {
     char* ptr = (char*)map();
@@ -123,7 +123,7 @@ void Buffer::setData(void* data, uint size, uint offset) {
   }
 }
 
-void Buffer::setDataAsync(TransferBuffer* tb, void* data, uint size, uint offset) {
+void Buffer::setDataAsync(TransferBuffer* tb, const void* data, uint size, uint offset) {
   nei_assert(size + offset <= this->size);
   auto temp = tb->createStagingBuffer(size);
   temp->setData(data, size, 0);
@@ -131,7 +131,7 @@ void Buffer::setDataAsync(TransferBuffer* tb, void* data, uint size, uint offset
   cmd->copy(temp, this, size, 0, offset);
 }
 
-void Buffer::setDataInline(CommandBuffer* cmd, void* data, uint size, uint offset) {
+void Buffer::setDataInline(CommandBuffer* cmd,  const void* data, uint size, uint offset) {
   nei_assert(size< inlineBufferCopySize);
   (**cmd).updateBuffer(buffer, offset, size, data);
 }

@@ -3,7 +3,7 @@
 #include "DeviceObject.h"
 
 namespace vk {
-  // missing in vulkan.h
+  // missing in vulkan.hpp
   struct GeometryInstance {
     /// Transform matrix, containing only the top 3 rows
     float transform[12];
@@ -34,11 +34,11 @@ namespace Nei::Vu {
 
     void setUpdatable(bool updatable) {this->updatable=updatable;}
 
-    void create(CommandBuffer* cmd, std::vector<vk::GeometryNV> geometries);
-    void update(CommandBuffer* cmd, std::vector<vk::GeometryNV> geometries);
+    void create(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
+    void update(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
 
-    void create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances);
-    void update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances);
+    void create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
+    void update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
 
     void compact();
 

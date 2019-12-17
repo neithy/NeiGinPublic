@@ -33,7 +33,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 
 
   profiler = new Profiler(dc);
-  if (!args.log.empty()) {
+  if(!args.log.empty()) {
     profiler->openLog(args.log);
   }
 
@@ -41,7 +41,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 
   // Model
   model = Loader::load(dc, NeiFS->resolve(args.model));
-  if (!args.flythrough.empty()) {
+  if(!args.flythrough.empty()) {
     flythrough = Loader::loadFly(NeiFS->resolve(args.flythrough));
     flythrough.setSpeed(args.speed);
   }
@@ -49,21 +49,30 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   lightPosition = args.light;
 
 #if rtx
-  cmd->begin();
-  bvh = new RaytracingBVH(dc);
-  bvh->buildBottom(cmd,model.mesh);  
-  cmd->end();
-  cmd->submit();
-  
-  bvh->compactBottom();
+  {
+    auto start = std::chrono::high_resolution_clock::now();
+    cmd->begin();
+    bvh = new RaytracingBVH(dc);
+    bvh->setUpdatable(args.bvh>=1,args.bvh>=2);
+    bvh->buildBottom(cmd, model.mesh);
 
-  cmd->begin();
-  bvh->buildTop(cmd);  
-  cmd->end();
-  cmd->submit();
+    if(args.bvh == 0) { // compact if static bvh
+      cmd->end();
+      cmd->submit();
+      bvh->compactBottom();
+      cmd->begin();
+    }
+
+    bvh->buildTop(cmd);
+    cmd->end();
+    cmd->submit();
+    auto end = std::chrono::high_resolution_clock::now();
+
+    nei_log("BVH build time {} ms", std::chrono::duration<double, std::milli>(end-start).count());
+  }
 #endif
 
-  
+
   // Pipelines 
   gbufferPipeline = dc->loadFx(NeiFS->resolve("shaders/gbuffer.fx"));
   gbufferPipeline->addVertexLayout(VertexLayout::defaultLayout());
@@ -86,17 +95,17 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 
   // Shadow Mask
   shadowMask = new Texture2D(dc, resolution, vk::Format::eR8Unorm, Texture::Usage::GBuffer, false);
-  
+
   cmd->begin();
-  shadowMask->setLayout(cmd, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, shadowMask->getFullRange());  
+  shadowMask->setLayout(cmd, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, shadowMask->getFullRange());
   cmd->end();
   cmd->submit();
 
   //Descriptors
   gbufferDescriptor = gbufferPipeline->allocateDescriptorSet();
   std::vector<vk::ImageView> views;
-  for (auto& t : model.textures) views.push_back(t->createView());
-  while (views.size() < 128) views.push_back(views[0]);
+  for(auto& t : model.textures) views.push_back(t->createView());
+  while(views.size() < 128) views.push_back(views[0]);
   gbufferDescriptor->update(0, views, dc->getSampler(SamplerType::linearRepeat));
 
 
@@ -113,7 +122,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   shadowMaskDescriptor->update(1, bvh->getTop());
   shadowMaskDescriptor->update(2, gbuffer->getLayer(0)->createView());
 #endif
-  
+
   commandBuffers[0] = new CommandBuffer(dc);
   commandBuffers[1] = new CommandBuffer(dc);
   commandBuffers[2] = new CommandBuffer(dc);
@@ -123,15 +132,15 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 void MainApp::update(Nei::AppFrame const& frame) {
   profiler->checkResults();
 
-  if (args.frames > 0 && (frame.frameId - skipFrames) > args.frames * args.avgFrames) {
+  if(args.frames > 0 && (frame.frameId - skipFrames) > args.frames * args.avgFrames) {
     profiler->finish();
     quit();
   }
 }
 
 void MainApp::draw() {
-  if (window->isClosed()) return;
-  if (!swapchain->isValid()) return;
+  if(window->isClosed()) return;
+  if(!swapchain->isValid()) return;
 
   auto& cmd = commandBuffers[currentFrame];
   currentFrame = (currentFrame + 1) % 4;
@@ -146,15 +155,14 @@ void MainApp::draw() {
     profiler->writeMarker(cmd);
     {
       ProfileGPU(cmd, "BVH update");
-      /* not implemented yet
+      
       if(args.bvh==1)
-        bvh->rebuildTop(cmd);
+        bvh->updateTop(cmd);
       if(args.bvh==2) {
-        bvh->rebuildBottom(cmd,model.mesh);
-        bvh->rebuildTop(cmd);
+        bvh->updateBottom(cmd);
+        bvh->updateTop(cmd);
       }
-      cmd->debugBarrier();
-      */
+      cmd->debugBarrier();      
     }
 
     profiler->writeMarker(cmd);
@@ -168,10 +176,10 @@ void MainApp::draw() {
 
         mat4 vp;
 #ifdef fly
-        if (!args.flythrough.empty()) {
-          if (args.frames > 0)
+        if(!args.flythrough.empty()) {
+          if(args.frames > 0)
             vp = camera->getProjection() * flythrough.sample(max(0, (frame.frameId - skipFrames) / args.avgFrames),
-                                                             args.frames);
+              args.frames);
           else
             vp = camera->getProjection() * flythrough.sample(float(frame.simTime));
         } else {
@@ -213,7 +221,7 @@ void MainApp::draw() {
       cmd->bind(lightingDescriptor);
       cmd->dispatch(uvec3((resolution.x + 7) / 8, (resolution.y + 7) / 8, 1));
       accBuffer->setLayout(cmd, vk::ImageLayout::eGeneral, vk::ImageLayout::eTransferSrcOptimal,
-                           accBuffer->getFullRange());
+        accBuffer->getFullRange());
       cmd->debugBarrier();
     }
 

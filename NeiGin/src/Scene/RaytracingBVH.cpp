@@ -22,6 +22,7 @@ void RaytracingBVH::buildTop(CommandBuffer* cmd) {
   instances.push_back(instance);
 
   topLevel = new AccelerationStructure(deviceContext);
+  topLevel->setUpdatable(updatableTop);
   topLevel->create(cmd, instances);
 }
 
@@ -44,7 +45,18 @@ void RaytracingBVH::buildBottom(CommandBuffer* cmd, Mesh* mesh) {
   geometries.push_back(geometry);
 
   bottomLevel = new AccelerationStructure(deviceContext);
+  bottomLevel->setUpdatable(updatableBottom);
   bottomLevel->create(cmd, geometries);
+}
+
+void RaytracingBVH::updateTop(CommandBuffer* cmd) {
+  nei_assert(updatableTop);
+  topLevel->update(cmd,instances);
+}
+
+void RaytracingBVH::updateBottom(CommandBuffer* cmd) {
+  nei_assert(updatableBottom);
+  bottomLevel->update(cmd,geometries);
 }
 
 

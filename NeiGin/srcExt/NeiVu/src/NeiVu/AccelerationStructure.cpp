@@ -13,7 +13,7 @@ AccelerationStructure::~AccelerationStructure() {
   if(structure) device.destroyAccelerationStructureNV(structure, nullptr, dispatch);
 }
 
-void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryNV> geometries) {
+void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
   auto device = deviceContext->getVkDevice();
   auto& dispatch = deviceContext->getDispatch();
 
@@ -71,15 +71,36 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryN
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
 }
 
-void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryNV> geometries) { }
+void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
+  nei_assert(updatable);
+  auto device = deviceContext->getVkDevice();
+  auto& dispatch = deviceContext->getDispatch();
 
-void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances) {
+  vk::AccelerationStructureInfoNV asinfo;
+  asinfo.type = vk::AccelerationStructureTypeNV::eBottomLevel;
+  asinfo.flags = vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
+  asinfo.geometryCount = (uint)geometries.size();
+  asinfo.pGeometries = geometries.data();
+  asinfo.instanceCount = 0;
+
+  // build
+  (**cmd).buildAccelerationStructureNV(asinfo, nullptr, 0, true, structure, structure, *bufferScratch, 0, dispatch);
+  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV);
+}
+
+void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
   auto device = deviceContext->getVkDevice();
   auto& dispatch = deviceContext->getDispatch();
 
   vk::AccelerationStructureInfoNV asinfo;
   asinfo.type = vk::AccelerationStructureTypeNV::eTopLevel;
-  asinfo.flags = {}; //vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
+  asinfo.flags = {};
+  if(updatable) asinfo.flags |= vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
   asinfo.instanceCount = (uint)instances.size();
 
   vk::AccelerationStructureCreateInfoNV asci;
@@ -131,7 +152,28 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryI
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
 }
 
-void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances) { }
+void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
+  nei_assert(updatable);
+  auto device = deviceContext->getVkDevice();
+  auto& dispatch = deviceContext->getDispatch();
+
+  vk::AccelerationStructureInfoNV asinfo;
+  asinfo.type = vk::AccelerationStructureTypeNV::eTopLevel;
+  asinfo.flags = vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
+  asinfo.instanceCount = (uint)instances.size();
+
+  // skip instance data copy - it is always one instance with identity transform
+
+  (**cmd).buildAccelerationStructureNV(asinfo, *bufferInstances, 0, true, structure, structure, *bufferScratch, 0,
+    dispatch);
+  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV);
+
+}
 
 void AccelerationStructure::compact() {
   nei_assert(!updatable);
@@ -172,7 +214,8 @@ void AccelerationStructure::compact() {
   memInfo.type = vk::AccelerationStructureMemoryRequirementsTypeNV::eObject;
   auto memReqObject = device.getAccelerationStructureMemoryRequirementsNV(memInfo, dispatch);
 
-  auto compactedBuffer = new Buffer(deviceContext,uint(memReqObject.memoryRequirements.size),Buffer::Type::Raytracing);
+  auto compactedBuffer = new Buffer(deviceContext, uint(memReqObject.memoryRequirements.size),
+    Buffer::Type::Raytracing);
 
   auto& allocation = compactedBuffer->getAllocation();
   vk::BindAccelerationStructureMemoryInfoNV bindInfo;
@@ -188,8 +231,8 @@ void AccelerationStructure::compact() {
   cmd->end();
   cmd->submit();
 
-  device.destroyAccelerationStructureNV(structure,nullptr,dispatch);
-  
+  device.destroyAccelerationStructureNV(structure, nullptr, dispatch);
+
   buffer = compactedBuffer;
   structure = compacted;
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
