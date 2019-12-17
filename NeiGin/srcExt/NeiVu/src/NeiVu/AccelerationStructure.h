@@ -40,7 +40,8 @@ namespace Nei::Vu {
     void create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances);
     void update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances);
 
-    uint64 getCompactedSize();
+    void compact();
+
   protected:
     bool updatable = false;
     vk::AccelerationStructureNV structure;

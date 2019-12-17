@@ -19,8 +19,9 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryN
 
   vk::AccelerationStructureInfoNV asinfo;
   asinfo.type = vk::AccelerationStructureTypeNV::eBottomLevel;
-  asinfo.flags = vk::BuildAccelerationStructureFlagBitsNV::eAllowCompaction;
-  if(updatable) asinfo.flags|=vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
+  asinfo.flags = updatable
+                   ? vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate
+                   : vk::BuildAccelerationStructureFlagBitsNV::eAllowCompaction;
   asinfo.geometryCount = (uint)geometries.size();
   asinfo.pGeometries = geometries.data();
   asinfo.instanceCount = 0;
@@ -29,7 +30,7 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryN
   asci.info = asinfo;
 
   structure = device.createAccelerationStructureNV(asci, nullptr, dispatch);
-  
+
   // memory requirements info
   vk::AccelerationStructureMemoryRequirementsInfoNV memInfo;
   memInfo.accelerationStructure = structure;
@@ -40,9 +41,11 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryN
   memInfo.type = vk::AccelerationStructureMemoryRequirementsTypeNV::eUpdateScratch;
   auto memReqUpdate = device.getAccelerationStructureMemoryRequirementsNV(memInfo, dispatch);
 
+  nei_log("Bottom BVH object {}kB scratch {}kB update {}kB", memReqObject.memoryRequirements.size/1024,
+    memReqBuild.memoryRequirements.size/1024, memReqUpdate.memoryRequirements.size/1024);
   // allocate buffers
-  buffer = new Buffer(deviceContext,uint(memReqObject.memoryRequirements.size), Buffer::Type::Raytracing);
-  auto scratchSize =glm::max(memReqBuild.memoryRequirements.size, memReqUpdate.memoryRequirements.size);
+  buffer = new Buffer(deviceContext, uint(memReqObject.memoryRequirements.size), Buffer::Type::Raytracing);
+  auto scratchSize = glm::max(memReqBuild.memoryRequirements.size, memReqUpdate.memoryRequirements.size);
   bufferScratch = new Buffer(deviceContext, uint(scratchSize), Buffer::Type::Raytracing);
 
   // bind memory to structure
@@ -94,10 +97,14 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryI
   memInfo.type = vk::AccelerationStructureMemoryRequirementsTypeNV::eUpdateScratch;
   auto memReqUpdate = device.getAccelerationStructureMemoryRequirementsNV(memInfo, dispatch);
 
-  buffer = new Buffer(deviceContext,uint(memReqObject.memoryRequirements.size), Buffer::Type::Raytracing);
-  auto scratchSize =glm::max(memReqBuild.memoryRequirements.size, memReqUpdate.memoryRequirements.size);
+  nei_log("Top BVH object {}kB scratch {}kB update {}kB", memReqObject.memoryRequirements.size/1024,
+    memReqBuild.memoryRequirements.size/1024, memReqUpdate.memoryRequirements.size/1024);
+
+  buffer = new Buffer(deviceContext, uint(memReqObject.memoryRequirements.size), Buffer::Type::Raytracing);
+  auto scratchSize = glm::max(memReqBuild.memoryRequirements.size, memReqUpdate.memoryRequirements.size);
   bufferScratch = new Buffer(deviceContext, uint(scratchSize), Buffer::Type::Raytracing);
-  bufferInstances = new Buffer(deviceContext, uint(instances.size() * sizeof(vk::GeometryInstance)), Buffer::Type::Raytracing,
+  bufferInstances = new Buffer(deviceContext, uint(instances.size() * sizeof(vk::GeometryInstance)),
+    Buffer::Type::Raytracing,
     Stream);
 
   bufferInstances->setData(instances.data(), uint(instances.size() * sizeof(vk::GeometryInstance)));
@@ -126,7 +133,9 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryI
 
 void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> instances) { }
 
-uint64 AccelerationStructure::getCompactedSize() {
+void AccelerationStructure::compact() {
+  nei_assert(!updatable);
+
   auto device = deviceContext->getVkDevice();
   auto& dispatch = deviceContext->getDispatch();
 
@@ -137,15 +146,51 @@ uint64 AccelerationStructure::getCompactedSize() {
 
   Ptr cmd = deviceContext->getSingleUseCommandBuffer();
   cmd->begin();
-  (**cmd).resetQueryPool(pool,0,1);
-  (**cmd).writeAccelerationStructuresPropertiesNV(1,&structure,vk::QueryType::eAccelerationStructureCompactedSizeNV,pool,0,dispatch);
+  (**cmd).resetQueryPool(pool, 0, 1);
+  (**cmd).writeAccelerationStructuresPropertiesNV(1, &structure, vk::QueryType::eAccelerationStructureCompactedSizeNV,
+    pool, 0, dispatch);
 
   cmd->end();
   cmd->submit();
 
   uint64 data;
-  device.getQueryPoolResults(pool,0,1,sizeof(uint64),&data,sizeof(uint64),vk::QueryResultFlagBits::e64|vk::QueryResultFlagBits::eWait);
+  device.getQueryPoolResults(pool, 0, 1, sizeof(uint64), &data, sizeof(uint64),
+    vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
   device.destroyQueryPool(pool);
 
-  return data;
+  nei_log("BVH Bottom compacted {} kB", data/1024);
+
+  vk::AccelerationStructureCreateInfoNV info;
+  info.compactedSize = data;
+  info.info.type = vk::AccelerationStructureTypeNV::eBottomLevel;
+  info.info.flags = {};
+
+  auto compacted = device.createAccelerationStructureNV(info, nullptr, dispatch);
+
+  vk::AccelerationStructureMemoryRequirementsInfoNV memInfo;
+  memInfo.accelerationStructure = structure;
+  memInfo.type = vk::AccelerationStructureMemoryRequirementsTypeNV::eObject;
+  auto memReqObject = device.getAccelerationStructureMemoryRequirementsNV(memInfo, dispatch);
+
+  auto compactedBuffer = new Buffer(deviceContext,uint(memReqObject.memoryRequirements.size),Buffer::Type::Raytracing);
+
+  auto& allocation = compactedBuffer->getAllocation();
+  vk::BindAccelerationStructureMemoryInfoNV bindInfo;
+  bindInfo.accelerationStructure = compacted;
+  bindInfo.memory = allocation.memory;
+  bindInfo.memoryOffset = allocation.offset;
+  bindInfo.deviceIndexCount = 0;
+  bindInfo.pDeviceIndices = nullptr;
+  device.bindAccelerationStructureMemoryNV(bindInfo, dispatch);
+
+  cmd->begin();
+  (**cmd).copyAccelerationStructureNV(compacted, structure, vk::CopyAccelerationStructureModeNV::eCompact, dispatch);
+  cmd->end();
+  cmd->submit();
+
+  device.destroyAccelerationStructureNV(structure,nullptr,dispatch);
+  
+  buffer = compactedBuffer;
+  structure = compacted;
+  device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
 }

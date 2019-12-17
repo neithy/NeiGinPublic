@@ -4,6 +4,7 @@
 #include "NeiVu/DeviceObject.h"
 
 #include "Material.h"
+#include "NeiVu/AccelerationStructure.h"
 
 namespace Nei{
   struct RaytracingInstanceData {
@@ -19,20 +20,27 @@ namespace Nei{
     RaytracingBVH(DeviceContext* dc);
     virtual ~RaytracingBVH();
 
-    void create(CommandBuffer* cmd, Mesh* mesh);
+    void setUpdatable(bool top, bool bottom){
+      updatableTop=top;
+      updatableBottom=bottom;}
+    
+    void buildTop(CommandBuffer* cmd);
+    void buildBottom(CommandBuffer* cmd, Mesh* mesh);
 
-    void rebuildTop(CommandBuffer* cmd);
-    void rebuildBottom(CommandBuffer* cmd, Mesh* mesh);
+    void updateTop(CommandBuffer* cmd);
+    void updateBottom(CommandBuffer* cmd);
 
     AccelerationStructure* getTop() const;
-    auto& getInstanceData() const{return instanceData;}
 
-    uint64 getBottomCompactedSize();
+    void compactBottom();
   protected:
-    Node* root;
+    bool updatableTop = false;
+    bool updatableBottom = false;
+    std::vector<vk::GeometryInstance> instances;
+    std::vector<vk::GeometryNV> geometries;
+
     Ptr<AccelerationStructure> topLevel;
     Ptr<AccelerationStructure> bottomLevel;
-    std::vector<RaytracingInstanceData> instanceData;
   };
 };
 

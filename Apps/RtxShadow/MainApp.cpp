@@ -30,7 +30,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 
   auto& dc = deviceContext;
   Ptr cmd = new CommandBuffer(dc);
-  cmd->begin();
+
 
   profiler = new Profiler(dc);
   if (!args.log.empty()) {
@@ -49,16 +49,21 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   lightPosition = args.light;
 
 #if rtx
+  cmd->begin();
   bvh = new RaytracingBVH(dc);
-  bvh->create(cmd, model.mesh);
+  bvh->buildBottom(cmd,model.mesh);  
   cmd->end();
   cmd->submit();
-
-  auto size = bvh->getBottomCompactedSize();
   
+  bvh->compactBottom();
+
   cmd->begin();
+  bvh->buildTop(cmd);  
+  cmd->end();
+  cmd->submit();
 #endif
 
+  
   // Pipelines 
   gbufferPipeline = dc->loadFx(NeiFS->resolve("shaders/gbuffer.fx"));
   gbufferPipeline->addVertexLayout(VertexLayout::defaultLayout());
@@ -81,8 +86,11 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
 
   // Shadow Mask
   shadowMask = new Texture2D(dc, resolution, vk::Format::eR8Unorm, Texture::Usage::GBuffer, false);
-  shadowMask->setLayout(cmd, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, shadowMask->getFullRange());
-
+  
+  cmd->begin();
+  shadowMask->setLayout(cmd, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, shadowMask->getFullRange());  
+  cmd->end();
+  cmd->submit();
 
   //Descriptors
   gbufferDescriptor = gbufferPipeline->allocateDescriptorSet();
@@ -105,10 +113,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   shadowMaskDescriptor->update(1, bvh->getTop());
   shadowMaskDescriptor->update(2, gbuffer->getLayer(0)->createView());
 #endif
-
-  cmd->end();
-  cmd->submit();
-
+  
   commandBuffers[0] = new CommandBuffer(dc);
   commandBuffers[1] = new CommandBuffer(dc);
   commandBuffers[2] = new CommandBuffer(dc);
