@@ -13,7 +13,7 @@ AccelerationStructure::~AccelerationStructure() {
   if(structure) device.destroyAccelerationStructureNV(structure, nullptr, dispatch);
 }
 
-void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
+void AccelerationStructure::build(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
   auto device = deviceContext->getVkDevice();
   auto& dispatch = deviceContext->getDispatch();
 
@@ -60,15 +60,28 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryN
 
   // build
   (**cmd).buildAccelerationStructureNV(asinfo, nullptr, 0, false, structure, nullptr, *bufferScratch, 0, dispatch);
-  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV);
+  barrier(cmd);
 
   // handle
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
+}
+
+void AccelerationStructure::rebuild(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
+  auto device = deviceContext->getVkDevice();
+  auto& dispatch = deviceContext->getDispatch();
+
+  vk::AccelerationStructureInfoNV asinfo;
+  asinfo.type = vk::AccelerationStructureTypeNV::eBottomLevel;
+  asinfo.flags = updatable
+    ? vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate
+    : vk::BuildAccelerationStructureFlagBitsNV::eAllowCompaction;
+  asinfo.geometryCount = (uint)geometries.size();
+  asinfo.pGeometries = geometries.data();
+  asinfo.instanceCount = 0;
+
+  // build
+  (**cmd).buildAccelerationStructureNV(asinfo, nullptr, 0, false, structure, nullptr, *bufferScratch, 0, dispatch);
+  barrier(cmd);
 }
 
 void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries) {
@@ -85,15 +98,10 @@ void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryN
 
   // build
   (**cmd).buildAccelerationStructureNV(asinfo, nullptr, 0, true, structure, structure, *bufferScratch, 0, dispatch);
-  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV);
+  barrier(cmd);
 }
 
-void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
+void AccelerationStructure::build(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
   auto device = deviceContext->getVkDevice();
   auto& dispatch = deviceContext->getDispatch();
 
@@ -141,15 +149,25 @@ void AccelerationStructure::create(CommandBuffer* cmd, std::vector<vk::GeometryI
 
   (**cmd).buildAccelerationStructureNV(asinfo, *bufferInstances, 0, false, structure, nullptr, *bufferScratch, 0,
     dispatch);
-  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV);
+  barrier(cmd);
 
   // handle
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
+}
+
+void AccelerationStructure::rebuild(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
+  auto device = deviceContext->getVkDevice();
+  auto& dispatch = deviceContext->getDispatch();
+
+  vk::AccelerationStructureInfoNV asinfo;
+  asinfo.type = vk::AccelerationStructureTypeNV::eTopLevel;
+  asinfo.flags = {};
+  if (updatable) asinfo.flags |= vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
+  asinfo.instanceCount = (uint)instances.size();
+  
+  (**cmd).buildAccelerationStructureNV(asinfo, *bufferInstances, 0, false, structure, nullptr, *bufferScratch, 0,
+    dispatch);
+  barrier(cmd);
 }
 
 void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances) {
@@ -166,13 +184,7 @@ void AccelerationStructure::update(CommandBuffer* cmd, std::vector<vk::GeometryI
 
   (**cmd).buildAccelerationStructureNV(asinfo, *bufferInstances, 0, true, structure, structure, *bufferScratch, 0,
     dispatch);
-  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV,
-    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
-    eAccelerationStructureWriteNV);
-
+  barrier(cmd);
 }
 
 void AccelerationStructure::compact() {
@@ -236,4 +248,13 @@ void AccelerationStructure::compact() {
   buffer = compactedBuffer;
   structure = compacted;
   device.getAccelerationStructureHandleNV(structure, sizeof(uint64), &handle, dispatch);
+}
+
+void AccelerationStructure::barrier(CommandBuffer* cmd) {
+  cmd->memoryBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV,
+    vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::
+    eAccelerationStructureWriteNV);
 }

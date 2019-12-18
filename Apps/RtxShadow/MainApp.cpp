@@ -55,7 +55,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
     auto start = std::chrono::high_resolution_clock::now();
     cmd->begin();
     bvh = new RaytracingBVH(dc);
-    bvh->setUpdatable(args.bvh>=1,args.bvh>=2);
+    bvh->setUpdatable(args.bvh==1 || args.bvh == 2,args.bvh==2);
     bvh->buildBottom(cmd, model.mesh);
 
     if(args.bvh == 0) { // compact if static bvh
@@ -70,7 +70,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
     cmd->submit();
     auto end = std::chrono::high_resolution_clock::now();
 
-    nei_log("BVH build time {} ms", std::chrono::duration<double, std::milli>(end-start).count());
+    nei_log("BVH build time {} ms", std::chrono::duration<double, std::milli>(end - start).count());
   }
 #endif
 
@@ -157,14 +157,19 @@ void MainApp::draw() {
     profiler->writeMarker(cmd);
     {
       ProfileGPU(cmd, "BVH update");
-      
+#if rtx
       if(args.bvh==1)
         bvh->updateTop(cmd);
       if(args.bvh==2) {
         bvh->updateBottom(cmd);
         bvh->updateTop(cmd);
       }
-      cmd->debugBarrier();      
+      if (args.bvh == 3) {
+        bvh->rebuildBottom(cmd);
+        bvh->rebuildTop(cmd);
+    }
+      cmd->debugBarrier();
+#endif
     }
 
     profiler->writeMarker(cmd);

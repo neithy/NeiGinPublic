@@ -27,6 +27,9 @@ namespace Nei{
     void buildTop(CommandBuffer* cmd);
     void buildBottom(CommandBuffer* cmd, Mesh* mesh);
 
+    void rebuildTop(CommandBuffer* cmd);
+    void rebuildBottom(CommandBuffer* cmd);
+
     void updateTop(CommandBuffer* cmd);
     void updateBottom(CommandBuffer* cmd);
 

@@ -34,15 +34,18 @@ namespace Nei::Vu {
 
     void setUpdatable(bool updatable) {this->updatable=updatable;}
 
-    void create(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
+    void build(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
+    void rebuild(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
     void update(CommandBuffer* cmd, std::vector<vk::GeometryNV> const& geometries);
 
-    void create(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
+    void build(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
+    void rebuild(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
     void update(CommandBuffer* cmd, std::vector<vk::GeometryInstance> const& instances);
 
     void compact();
 
   protected:
+    void barrier(CommandBuffer* cmd);
     bool updatable = false;
     vk::AccelerationStructureNV structure;
     uint64 handle=0;
