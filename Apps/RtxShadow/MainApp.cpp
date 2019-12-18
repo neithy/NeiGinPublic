@@ -26,7 +26,8 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   opt.window.size = {args.w, args.h};
   init(opt);
 
-  NeiFS->mount(APP_DIR);
+  NeiFS->mount(".");
+  NeiFS->mount(APP_DIR);  
 
   auto& dc = deviceContext;
   Ptr cmd = new CommandBuffer(dc);
@@ -42,8 +43,7 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   // Model
   model = Loader::load(dc, NeiFS->resolve(args.model));
   if(!args.flythrough.empty()) {
-    flythrough = Loader::loadFly(NeiFS->resolve(args.flythrough));
-    flythrough.setSpeed(args.speed);
+    cameraPath = CameraPath(args.frames==0, NeiFS->resolve(args.flythrough).string());
   }
 
   lightPosition = args.light;
@@ -177,11 +177,16 @@ void MainApp::draw() {
         mat4 vp;
 #ifdef fly
         if(!args.flythrough.empty()) {
-          if(args.frames > 0)
-            vp = camera->getProjection() * flythrough.sample(max(0, (frame.frameId - skipFrames) / args.avgFrames),
-              args.frames);
-          else
-            vp = camera->getProjection() * flythrough.sample(float(frame.simTime));
+            if (args.frames > 0) {
+                CameraPathKeypoint const kp = cameraPath.getKeypoint(max<float>(0, (frame.frameId - skipFrames)/float(args.frames) / float(args.avgFrames)));
+                glm::mat4 const viewMat = glm::lookAt(kp.position, kp.position + kp.viewVector, kp.upVector);
+                vp = camera->getProjection() * viewMat;
+            }
+            else{
+              CameraPathKeypoint const kp = cameraPath.getKeypoint(float(frame.simTime/60.));
+              glm::mat4 const viewMat = glm::lookAt(kp.position, kp.position + kp.viewVector, kp.upVector);
+              vp = camera->getProjection() * viewMat;
+            }
         } else {
           vp = camera->getProjection() * camera->getView();
         }

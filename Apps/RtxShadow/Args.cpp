@@ -9,7 +9,7 @@ Usage:
 -p "" - preset 0=sponza, 1=conference, 2=Closed Citadel, 3=Budha, 4=Hairball 
 -m models/sponza/sponza.obj - model path
 -f models/sponza/sponza_fly.txt - fly path
--s 2 - fly speed
+-s 0 1000 0 - sun position
 -t 0 - total frames to record (overrides speed)
 -l "" - log to file - "frameID,bvh,gbuffer,shadowmask,lighting,copy"
 -r 1 - render scale (allows to 4k on 1080p display)
@@ -42,9 +42,13 @@ void Args::init(int argc, char** argv) {
     } else if(arg == "-f" && argc) {
       next();
       flythrough = arg;
-    } else if(arg == "-s" && argc) {
+    } else if(arg == "-s" && argc>=3) {
       next();
-      speed = std::stof(arg);
+      light.x = std::stof(arg);
+      next();
+      light.y = std::stof(arg);
+      next();
+      light.z = std::stof(arg);
     } else if(arg == "-t" && argc) {
       next();
       frames = std::stoi(arg);
@@ -70,27 +74,27 @@ void Args::init(int argc, char** argv) {
         case 0:
           model = "models/sponza/sponza.obj";
           flythrough = "models/sponza/sponza_fly.txt";
-          light = glm::vec3(0,10,0);
+          light = glm::vec3(0,1000,0);
           break;
         case 1:
           model = "models/conference/conference.obj";
           flythrough = "models/conference/conference_fly.txt";
-          light = glm::vec3(1.98,6.20,-1.825);
+          light = glm::vec3(198,620,-182.5);
           break;
         case 2:
           model = "models/citadel/mycitadel.obj";
           flythrough = "models/citadel/citadel_fly.txt";
-          light = glm::vec3(-16.58, 18.77, 10.31);
+          light = glm::vec3(-1658, 1877, 1031);
           break;
         case 3:
           model = "models/buddha/buddha_plane.obj";
           flythrough = "models/buddha/buddha_fly.txt";
-          light = glm::vec3(0 ,0.02, 0.015 );
+          light = glm::vec3(0 ,2, 1.5 );
           break;
         case 4:
           model = "models/hairball/hairball_plane.obj";
           flythrough = "models/hairball/hairball_fly.txt";
-          light = glm::vec3(0,0.1,0);
+          light = glm::vec3(0,10,0);
           break;
       }
     } else {

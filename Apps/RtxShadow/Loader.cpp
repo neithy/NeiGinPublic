@@ -114,7 +114,7 @@ ModelData Loader::load(Nei::DeviceContext* dc, fs::path const& path) {
     int materialId = aMesh->mMaterialIndex;
 
     for (uint j = 0; j < vertexCount; j++) {
-      vptr->position = 0.01f*toGlm(aMesh->mVertices[j]);
+      vptr->position = toGlm(aMesh->mVertices[j]);
       if (normals)vptr->normal = toGlm(aMesh->mNormals[j]);
       if (texCoords)vptr->texCoord = toGlm(aMesh->mTextureCoords[0][j]);
       vptr->material = materialId;
@@ -177,9 +177,7 @@ Flythrough Loader::loadFly(fs::path const& path)
     ss >> d;
     ss >> p.up.z;
     ss >> d;
-
-    p.position *= 0.01f;
-
+    
     ret.points.push_back(p);
   }
 

@@ -23,7 +23,7 @@ void Profiler::openLog(fs::path const& path) {
     nei_error("Failed to open log for writing! {}", path.string());
     return;
   }
-  stream << "frameID,BVH,gBuffer,shadowMask,lighting,copy\n";
+  stream << "frame,BVH,gBuffer,shadowMask,shading,copy\n";
 }
 
 void Profiler::beginFrame(Nei::CommandBuffer* cmd, int frameId) {
