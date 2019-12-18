@@ -2,7 +2,7 @@
 #include "Scene/RaytracingBVH.h"
 
 #define fly 1
-#define rtx 1
+#define rtx 0
 
 MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   args.init(argc, argv);
@@ -25,6 +25,8 @@ MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   opt.window.resizable = false;
   opt.window.size = {args.w, args.h};
   init(opt);
+
+  camera->setFov(90, resolution);
 
   NeiFS->mount(".");
   NeiFS->mount(APP_DIR);  
