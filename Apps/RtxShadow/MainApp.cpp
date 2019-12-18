@@ -2,7 +2,7 @@
 #include "Scene/RaytracingBVH.h"
 
 #define fly 1
-#define rtx 0
+#define rtx 1
 
 MainApp::MainApp(int argc, char** argv): SimpleApplication(nullptr) {
   args.init(argc, argv);
