@@ -88,8 +88,8 @@ void Args::init(int argc, char** argv) {
           light = glm::vec3(0 ,0.02, 0.015 );
           break;
         case 4:
-          model = "models/hairball_plane.obj";
-          flythrough = "models/hairball_plane/hairball_fly.txt";
+          model = "models/hairball/hairball_plane.obj";
+          flythrough = "models/hairball/hairball_fly.txt";
           light = glm::vec3(0,0.1,0);
           break;
       }
