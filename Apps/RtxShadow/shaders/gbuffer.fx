@@ -1,6 +1,6 @@
 #version 450
 #depthTestEnable true
-#cull back
+#cull none
 
 #vert
 layout(location = 0) in vec3 aPosition;
